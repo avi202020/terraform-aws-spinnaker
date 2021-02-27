@@ -12,9 +12,13 @@ output "vpce" {
 
 locals {
   private_subnets = { for key, val in aws_subnet.private : key => val.id }
+  public_subnets  = { for key, val in aws_subnet.public : key => val.id }
 }
 
-output "private_subnets" {
-  description = "The list of private subnet IDs"
-  value       = local.private_subnets
+output "subnets" {
+  description = "The map of subnet IDs"
+  value = zipmap(
+    ["private", "public"],
+    [local.private_subnets, local.public_subnets]
+  )
 }

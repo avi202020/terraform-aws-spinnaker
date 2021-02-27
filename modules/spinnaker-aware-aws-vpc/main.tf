@@ -16,7 +16,7 @@ resource "aws_subnet" "private" {
   for_each          = toset(var.azs)
   vpc_id            = aws_vpc.vpc.id
   availability_zone = each.value
-  cidr_block        = cidrsubnet(var.cidr, 8, 7 * (index(var.azs, each.value) + 1))
+  cidr_block        = cidrsubnet(var.cidr, 8, (index(var.azs, each.value) * 8))
 
   tags = merge(
     local.default-tags,
@@ -45,6 +45,23 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
+resource "aws_subnet" "public" {
+  for_each          = toset(var.azs)
+  vpc_id            = aws_vpc.vpc.id
+  availability_zone = each.value
+  cidr_block        = cidrsubnet(var.cidr, 8, (index(var.azs, each.value) * 8) + 1)
+
+  tags = merge(
+    local.default-tags,
+    { Name = join(".", [local.name, "public", each.value]) },
+    var.tags,
+  )
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # security/firewall
 resource "aws_security_group" "vpce" {
   name        = format("%s-%s", local.name, "vpce")
@@ -58,13 +75,12 @@ resource "aws_security_group" "vpce" {
     protocol    = "tcp"
     cidr_blocks = [var.cidr]
   }
-
-  #  egress {
-  #    from_port   = 0
-  #    to_port     = 0
-  #    protocol    = "-1"
-  #    cidr_blocks = ["0.0.0.0/0"]
-  #  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 ## aws partition and region (global, gov, china)
